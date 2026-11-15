@@ -1,4 +1,4 @@
-**On-chain regime, 2026-11-14** (generated 2026-11-15T20:35:14+00:00)
+**On-chain regime, 2026-11-14** (generated 2026-11-15T20:36:32+00:00)
 
 | Asset | Regime | Price | Realized | MVRV (pct) | Supply in profit (pct) | Joint rarity |
 |---|---|---|---|---|---|---|
