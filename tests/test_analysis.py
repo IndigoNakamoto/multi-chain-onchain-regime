@@ -6,7 +6,15 @@ import pytest
 
 from onchain_regime.assets import ASSETS
 from onchain_regime.backtest import backtest, performance, positions, trades
-from onchain_regime.snapshot import build_snapshot, classify, to_markdown
+from onchain_regime.snapshot import (
+    attach_changes,
+    build_snapshot,
+    classify,
+    diff,
+    load_history,
+    to_markdown,
+    update_history,
+)
 from onchain_regime.client import BRKClient
 from onchain_regime.compare import regime_timing
 from onchain_regime.data import load_asset, trim_to_valid
@@ -203,6 +211,44 @@ def test_snapshot_classify_and_json_safe():
     assert set(snap["assets"]) == {"ltc", "btc"} and "ltc/btc" in snap["relative"]
     assert snap["relative"]["ltc/btc"]["relative_mvrv"] == pytest.approx(1.0)
     assert "| Litecoin |" in to_markdown(snap)
+
+
+def _compact(as_of, regime="neutral", signal=False, mvrv_pct=50.0, sip_pct=50.0, rel=50.0):
+    return {"as_of": as_of,
+            "assets": {"ltc": {"regime": regime, "signal": signal, "mvrv_pct": mvrv_pct,
+                               "supply_in_profit_share_pct": sip_pct}},
+            "relative": {"ltc/btc": rel}}
+
+
+def test_diff_reports_label_signal_and_big_moves_only():
+    prev = _compact("2026-11-01")
+    cur = _compact("2026-11-08", regime="undervalued", signal=True, mvrv_pct=45.0, sip_pct=30.0, rel=65.0)
+    items = diff(prev, cur)
+    assert "LTC regime changed: neutral -> undervalued" in items
+    assert "LTC bottom-percentile signal turned ON" in items
+    assert any("supply_in_profit_share percentile moved 50.0 -> 30.0" in i for i in items)
+    assert not any("LTC mvrv percentile" in i for i in items)
+    assert any("LTC/BTC relative MVRV" in i for i in items)
+    assert diff(prev, prev) == []
+
+
+def test_history_roundtrip_and_attach_changes(tmp_path, monkeypatch):
+    import onchain_regime.snapshot as snapmod
+
+    path = tmp_path / "history.jsonl"
+    for day, regime in [("2026-11-01", "neutral"), ("2026-11-07", "neutral"), ("2026-11-07", "neutral")]:
+        snap = {"as_of": day}
+        monkeypatch.setattr(snapmod, "compact", lambda s, r=regime: _compact(s["as_of"], regime=r))
+        update_history(path, snap)
+    hist = load_history(path)
+    assert [h["as_of"] for h in hist] == ["2026-11-01", "2026-11-07"]
+
+    monkeypatch.setattr(snapmod, "compact", lambda s: _compact(s["as_of"], regime="undervalued"))
+    out = attach_changes({"as_of": "2026-11-08"}, hist)
+    assert out["changes"]["since_previous"]["as_of"] == "2026-11-07"
+    assert out["changes"]["since_7d"]["as_of"] == "2026-11-01"
+    assert out["changes"]["since_7d"]["items"] == ["LTC regime changed: neutral -> undervalued"]
+    assert attach_changes({"as_of": "2026-11-01"}, hist)["changes"]["since_previous"] is None
 
 
 def test_doge_stub_raises_clear_error():

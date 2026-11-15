@@ -1,0 +1,43 @@
+name: Daily regime snapshot
+
+on:
+  schedule:
+    # Daily candles close at 00:00 UTC; give the APIs time to finish indexing.
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: regime-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv pip install --system -e .
+
+      - name: Build snapshot
+        run: python -m onchain_regime snapshot --assets ltc,btc --refresh --out regime --format md
+
+      - name: Commit if changed
+        run: |
+          git config user.name "regime-snapshot[bot]"
+          git config user.email "regime-snapshot[bot]@users.noreply.github.com"
+          git add regime/
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Regime snapshot $(jq -r .as_of regime/current_regime.json)"
+            git push
+          fi

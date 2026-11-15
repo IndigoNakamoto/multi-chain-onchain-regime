@@ -16,7 +16,14 @@ from onchain_regime.assets import ASSETS  # noqa: E402
 from onchain_regime.data import load_assets  # noqa: E402
 from onchain_regime.pipeline import REFERENCE_ASSET, Results, run_analysis  # noqa: E402
 from onchain_regime.plots import all_plots  # noqa: E402
-from onchain_regime.snapshot import build_snapshot, to_json, to_markdown  # noqa: E402
+from onchain_regime.snapshot import (  # noqa: E402
+    attach_changes,
+    build_snapshot,
+    load_history,
+    to_json,
+    to_markdown,
+    update_history,
+)
 
 
 def write_tables(res: Results, out: Path) -> list[Path]:
@@ -103,11 +110,14 @@ def summary_markdown(res: Results) -> str:
     return "\n".join(lines)
 
 
-def write_snapshot(snap: dict, out: Path) -> list[Path]:
-    paths = [out / "current_regime.json", out / "current_regime.md"]
-    paths[0].write_text(to_json(snap) + "\n")
-    paths[1].write_text(to_markdown(snap))
-    return paths
+def write_snapshot(snap: dict, out: Path) -> dict:
+    """Attach changes from ``out/history.jsonl``, write JSON + markdown, record today in history."""
+    history_path = out / "history.jsonl"
+    snap = attach_changes(snap, load_history(history_path))
+    (out / "current_regime.json").write_text(to_json(snap) + "\n")
+    (out / "current_regime.md").write_text(to_markdown(snap))
+    update_history(history_path, snap)
+    return snap
 
 
 def _keys(text: str) -> list[str]:
@@ -147,7 +157,12 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
     if args.out:
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
-        write_snapshot(snap, out)
+        last = min(df.index[-1] for df in frames.values())
+        for back in range(args.backfill_days, 0, -1):
+            day = last - pd.Timedelta(days=back)
+            past = {k: df.loc[:day] for k, df in frames.items()}
+            update_history(out / "history.jsonl", build_snapshot(past, REFERENCE_ASSET, args.bt_threshold))
+        snap = write_snapshot(snap, out)
     print(to_markdown(snap) if args.format == "md" else to_json(snap))
 
 
@@ -173,7 +188,10 @@ def main(argv: list[str] | None = None) -> None:
     snap = sub.add_parser("snapshot", help="Print the current-regime snapshot (daily data only)")
     common(snap)
     snap.add_argument("--format", choices=["json", "md"], default="json")
-    snap.add_argument("--out", default=None, help="Also write current_regime.json/.md to this directory")
+    snap.add_argument("--out", default=None,
+                      help="Write current_regime.json/.md and append history.jsonl in this directory")
+    snap.add_argument("--backfill-days", type=int, default=0,
+                      help="Also record the previous N days in history.jsonl, each from data up to that day")
     snap.set_defaults(func=cmd_snapshot)
 
     args = p.parse_args(argv)
