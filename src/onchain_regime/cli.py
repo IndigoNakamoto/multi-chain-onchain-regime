@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from onchain_regime.assets import ASSETS  # noqa: E402
-from onchain_regime.pipeline import Results, run_analysis  # noqa: E402
+from onchain_regime.data import load_assets  # noqa: E402
+from onchain_regime.pipeline import REFERENCE_ASSET, Results, run_analysis  # noqa: E402
 from onchain_regime.plots import all_plots  # noqa: E402
-
-PCT_COLS_FMT = "{:.1f}"
+from onchain_regime.snapshot import build_snapshot, to_json, to_markdown  # noqa: E402
 
 
 def write_tables(res: Results, out: Path) -> list[Path]:
@@ -38,6 +38,9 @@ def write_tables(res: Results, out: Path) -> list[Path]:
             save(r.returns[name], f"{k}_{name}")
         save(r.daily, f"{k}_daily")
         save(r.monthly, f"{k}_monthly")
+        save(r.backtest, f"{k}_backtest_daily")
+        save(r.performance, f"{k}_backtest_performance")
+        save(r.trades, f"{k}_backtest_trades", index=False)
     for pair, rel in res.relative.items():
         save(rel, f"relative_mvrv_{pair}")
     if res.relative_summary is not None:
@@ -54,7 +57,7 @@ def write_plots(res: Results, out: Path) -> list[Path]:
     pdir.mkdir(parents=True, exist_ok=True)
     rel = next(iter(res.relative.values()), None)
     written = []
-    for name, fig in all_plots(res.frames, res.episodes, rel).items():
+    for name, fig in all_plots(res.frames, res.episodes, rel, res.backtests).items():
         p = pdir / f"{name}.png"
         fig.savefig(p, dpi=130)
         plt.close(fig)
@@ -92,18 +95,36 @@ def summary_markdown(res: Results) -> str:
         lines += ["## Regime timing vs BTC", "", res.timing.to_markdown(index=False), ""]
     if res.overlap is not None:
         lines += ["## Days in regime", "", res.overlap.to_markdown(index=False), ""]
+    bt0 = next(iter(res.backtests.values()))
+    lines += [f"## Backtest: both <= p{bt0.attrs['threshold']:g} point-in-time, exit {bt0.attrs['exit']}", "",
+              "Long/flat, signal acted on the next day, zero return while flat.", ""]
+    for k, r in res.assets.items():
+        lines += [f"### {ASSETS[k].name}", "", _md(r.performance), "", r.trades.to_markdown(index=False, floatfmt=".3f"), ""]
     return "\n".join(lines)
 
 
+def write_snapshot(snap: dict, out: Path) -> list[Path]:
+    paths = [out / "current_regime.json", out / "current_regime.md"]
+    paths[0].write_text(to_json(snap) + "\n")
+    paths[1].write_text(to_markdown(snap))
+    return paths
+
+
+def _keys(text: str) -> list[str]:
+    return [k.strip() for k in text.split(",") if k.strip()]
+
+
 def cmd_run(args: argparse.Namespace) -> None:
-    keys = [k.strip() for k in args.assets.split(",") if k.strip()]
-    res = run_analysis(keys, rule=args.rule, refresh=args.refresh, cache_dir=args.cache_dir, gap_days=args.gap_days)
+    keys = _keys(args.assets)
+    res = run_analysis(keys, rule=args.rule, refresh=args.refresh, cache_dir=args.cache_dir, gap_days=args.gap_days,
+                       bt_threshold=args.bt_threshold, bt_exit=args.bt_exit)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     tables = write_tables(res, out)
     plots = write_plots(res, out)
     summary = out / "summary.md"
     summary.write_text(summary_markdown(res))
+    write_snapshot(res.snapshot, out)
 
     with pd.option_context("display.width", 160, "display.max_columns", 20):
         print(f"Rule: {res.rule.label}\n")
@@ -115,20 +136,46 @@ def cmd_run(args: argparse.Namespace) -> None:
         for k, r in res.assets.items():
             print(f"{ASSETS[k].name} episode-start forward returns:")
             print(r.returns["episode_summary"].round(3).to_string(), "\n")
-    print(f"Wrote {len(tables)} tables, {len(plots)} plots, and {summary}")
+            print(f"{ASSETS[k].name} backtest vs buy-and-hold:")
+            print(r.performance.drop(columns=["start", "end"]).round(3).to_string(), "\n")
+    print(f"Wrote {len(tables)} tables, {len(plots)} plots, {summary}, and current_regime.json/.md")
+
+
+def cmd_snapshot(args: argparse.Namespace) -> None:
+    frames = load_assets(_keys(args.assets), refresh=args.refresh, cache_dir=args.cache_dir)
+    snap = build_snapshot(frames, REFERENCE_ASSET, args.bt_threshold)
+    if args.out:
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        write_snapshot(snap, out)
+    print(to_markdown(snap) if args.format == "md" else to_json(snap))
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="onchain_regime")
     sub = p.add_subparsers(dest="cmd", required=True)
-    run = sub.add_parser("run", help="Pull data, compute percentiles/episodes/returns, write outputs")
-    run.add_argument("--assets", default="ltc,btc", help="Comma-separated asset keys (doge once enabled)")
+
+    def common(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--assets", default="ltc,btc", help="Comma-separated asset keys (doge once enabled)")
+        sp.add_argument("--refresh", action="store_true", help="Ignore the raw CSV cache and re-download")
+        sp.add_argument("--cache-dir", default="data/raw")
+        sp.add_argument("--bt-threshold", type=float, default=10.0,
+                        help="Point-in-time percentile threshold for the regime signal")
+
+    run = sub.add_parser("run", help="Pull data, compute percentiles/episodes/returns/backtest, write outputs")
+    common(run)
     run.add_argument("--rule", default="current", help="'current' or 'pctl:<n>' (point-in-time percentile)")
-    run.add_argument("--refresh", action="store_true", help="Ignore the raw CSV cache and re-download")
     run.add_argument("--gap-days", type=int, default=30, help="Merge matching days closer than this")
-    run.add_argument("--cache-dir", default="data/raw")
+    run.add_argument("--bt-exit", default="hold:180", help="'hold:<days>' or 'mvrv_pct:<pct>'")
     run.add_argument("--out", default="outputs")
     run.set_defaults(func=cmd_run)
+
+    snap = sub.add_parser("snapshot", help="Print the current-regime snapshot (daily data only)")
+    common(snap)
+    snap.add_argument("--format", choices=["json", "md"], default="json")
+    snap.add_argument("--out", default=None, help="Also write current_regime.json/.md to this directory")
+    snap.set_defaults(func=cmd_snapshot)
+
     args = p.parse_args(argv)
     args.func(args)
 

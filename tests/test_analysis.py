@@ -1,8 +1,12 @@
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from onchain_regime.assets import ASSETS
+from onchain_regime.backtest import backtest, performance, positions, trades
+from onchain_regime.snapshot import build_snapshot, classify, to_markdown
 from onchain_regime.client import BRKClient
 from onchain_regime.compare import regime_timing
 from onchain_regime.data import load_asset, trim_to_valid
@@ -139,6 +143,66 @@ def test_load_asset_with_fake_client_derives_price_to_realized():
     df = load_asset("ltc", client=c)
     assert df.index[0] == pd.Timestamp("2020-01-02") and len(df) == 3
     assert df["price_to_realized"].tolist() == pytest.approx([1.0, 1.2, 0.9])
+
+
+def test_positions_hold_acts_next_day_and_expires():
+    df = frame([1.0] * 10, [50] * 10)
+    sig = pd.Series(False, index=df.index)
+    sig.iloc[2] = True
+    pos = positions(df, sig, "hold:3")
+    assert pos.tolist() == [0, 0, 0, 1, 1, 1, 0, 0, 0, 0]
+
+
+def test_positions_mvrv_exit():
+    mvrv = [1.0] * 5 + [0.1] + [0.5, 0.6, 50.0, 0.7, 0.8]
+    df = frame(mvrv, [50] * 11)
+    sig = pd.Series(False, index=df.index)
+    sig.iloc[5] = True
+    pos = positions(df, sig, "mvrv_pct:90", min_history=1)
+    # enter day 6, MVRV hits 100th pct on day 8, flat from day 9
+    assert pos.tolist() == [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0]
+
+
+def test_backtest_equity_and_performance():
+    n = 400
+    price = np.concatenate([np.full(200, 100.0), np.linspace(100, 50, 100), np.linspace(50, 200, 100)])
+    mvrv = np.concatenate([np.full(200, 1.0), np.linspace(1.0, 0.3, 100), np.linspace(0.3, 2.0, 100)])
+    sip = np.concatenate([np.full(200, 60.0), np.linspace(60, 5, 100), np.linspace(5, 99, 100)])
+    df = frame(mvrv, sip, price=price)
+    bt = backtest(df, threshold=10, exit="hold:30", min_history=50)
+    assert bt.index[0] == df.index[49]
+    assert bt["buy_hold_equity"].iloc[-1] == pytest.approx(2.0)
+    flat = bt["position"] == 0
+    assert (bt.loc[flat, "strategy_ret"] == 0).all()
+    perf = performance(bt)
+    assert perf.loc["buy_hold", "time_in_market"] == 1.0
+    assert 0 < perf.loc["strategy", "time_in_market"] < 1
+    assert perf.loc["strategy", "max_drawdown"] > perf.loc["buy_hold", "max_drawdown"]
+    t = trades(bt)
+    assert (1 + t["return"]).prod() == pytest.approx(bt["strategy_equity"].iloc[-1])
+
+
+def test_snapshot_classify_and_json_safe():
+    assert classify(5, 5) == "capitulation"
+    assert classify(20, 3) == "undervalued"
+    assert classify(95, 50) == "overheated"
+    assert classify(50, 50) == "neutral"
+    n = 500
+    rng = np.random.default_rng(0)
+    price = 100 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
+    base = frame(rng.uniform(0.5, 2, n), rng.uniform(10, 90, n), price=price)
+    frames = {}
+    for k in ("ltc", "btc"):
+        df = base.copy()
+        df["realized_price"] = df["price_close"] / df["mvrv"]
+        df["sth_mvrv"] = df["lth_mvrv"] = df["mvrv"]
+        df["price_to_realized"] = df["mvrv"]
+        frames[k] = df
+    snap = build_snapshot(frames)
+    json.dumps(snap)
+    assert set(snap["assets"]) == {"ltc", "btc"} and "ltc/btc" in snap["relative"]
+    assert snap["relative"]["ltc/btc"]["relative_mvrv"] == pytest.approx(1.0)
+    assert "| Litecoin |" in to_markdown(snap)
 
 
 def test_doge_stub_raises_clear_error():

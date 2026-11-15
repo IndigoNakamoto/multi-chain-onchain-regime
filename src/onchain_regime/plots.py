@@ -97,7 +97,35 @@ def plot_price_vs_realized(frames, episodes=None) -> Figure:
     return fig
 
 
-def all_plots(frames, episodes, rel) -> dict[str, Figure]:
+def plot_equity_drawdown(backtests: dict[str, pd.DataFrame]) -> Figure:
+    n = len(backtests)
+    fig, axes = plt.subplots(2 * n, 1, figsize=(13, 5.5 * n), height_ratios=[2, 1] * n, squeeze=False)
+    for i, (key, bt) in enumerate(backtests.items()):
+        a = get_asset(key)
+        ax, ax_dd = axes[2 * i, 0], axes[2 * i + 1, 0]
+        ax.plot(bt.index, bt["buy_hold_equity"], color="grey", lw=1, label="Buy and hold")
+        ax.plot(bt.index, bt["strategy_equity"], color=a.color, lw=1.4, label="Regime strategy")
+        in_mkt = bt["position"] > 0
+        ax.fill_between(bt.index, 0, 1, where=in_mkt, transform=ax.get_xaxis_transform(), color=a.color, alpha=0.12, lw=0)
+        ax.set_yscale("log")
+        ax.set_title(
+            f"{a.name}: both <= p{bt.attrs['threshold']:g} point-in-time, exit {bt.attrs['exit']} "
+            f"(strategy {bt['strategy_equity'].iloc[-1]:,.1f}x vs buy-and-hold {bt['buy_hold_equity'].iloc[-1]:,.1f}x)"
+        )
+        ax.set_ylabel("Equity (log)")
+        ax.grid(alpha=0.25)
+        ax.legend(loc="upper left")
+        ax_dd.fill_between(bt.index, bt["buy_hold_drawdown"], 0, color="grey", alpha=0.35, lw=0, label="Buy and hold")
+        ax_dd.plot(bt.index, bt["strategy_drawdown"], color=a.color, lw=1, label="Regime strategy")
+        ax_dd.set_ylabel("Drawdown")
+        ax_dd.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
+        ax_dd.grid(alpha=0.25)
+        ax_dd.legend(loc="lower left")
+    fig.tight_layout()
+    return fig
+
+
+def all_plots(frames, episodes, rel, backtests=None) -> dict[str, Figure]:
     figs = {
         "mvrv_overlay": plot_mvrv_overlay(frames, episodes),
         "supply_in_profit_overlay": plot_sip_overlay(frames, episodes),
@@ -105,4 +133,6 @@ def all_plots(frames, episodes, rel) -> dict[str, Figure]:
     }
     if rel is not None:
         figs["relative_mvrv"] = plot_relative_mvrv(rel, episodes)
+    if backtests:
+        figs["equity_drawdown"] = plot_equity_drawdown(backtests)
     return figs
