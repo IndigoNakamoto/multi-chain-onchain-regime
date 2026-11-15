@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "litview": {
+      "url": "https://mcp.litview.space/"
+    },
+    "bitview": {
+      "url": "https://mcp.bitview.space/"
+    }
+  }
+}
