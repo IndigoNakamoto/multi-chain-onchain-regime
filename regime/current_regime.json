@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-11-15T20:37:28+00:00",
-  "as_of": "2026-11-14",
+  "generated_at": "2026-11-16T02:36:57+00:00",
+  "as_of": "2026-11-15",
   "percentiles": "full history, at or below; joint = share of days with MVRV and supply in profit both at or below today",
   "assets": {
     "ltc": {
       "name": "Litecoin",
-      "date": "2026-11-14",
-      "price_close": 44.17,
-      "realized_price": 74.84,
+      "date": "2026-11-15",
+      "price_close": 45.64,
+      "realized_price": 74.81,
       "metrics": {
         "mvrv": {
-          "value": 0.590192,
-          "percentile": 20.913706
+          "value": 0.610079,
+          "percentile": 23.122209
         },
         "supply_in_profit_share": {
-          "value": 8.985,
-          "percentile": 2.619289
+          "value": 13.4195,
+          "percentile": 5.359318
         },
         "sth_mvrv": {
-          "value": 0.827308,
-          "percentile": 28.548223
+          "value": 0.856285,
+          "percentile": 32.704019
         },
         "lth_mvrv": {
-          "value": 0.520627,
-          "percentile": 22.80203
+          "value": 0.538081,
+          "percentile": 24.462038
         },
         "price_to_realized": {
-          "value": 0.590192,
-          "percentile": 20.913706
+          "value": 0.610079,
+          "percentile": 23.122209
         }
       },
-      "joint_percentile": 1.543147,
+      "joint_percentile": 3.248071,
       "bottom_pct_signal": {
         "threshold": 10.0,
         "active": false
@@ -39,32 +39,32 @@
     },
     "btc": {
       "name": "Bitcoin",
-      "date": "2026-11-14",
-      "price_close": 63769.24,
-      "realized_price": 53744.28,
+      "date": "2026-11-15",
+      "price_close": 65243.41,
+      "realized_price": 53684.87,
       "metrics": {
         "mvrv": {
-          "value": 1.186531,
-          "percentile": 19.551173
+          "value": 1.215303,
+          "percentile": 20.788713
         },
         "supply_in_profit_share": {
-          "value": 48.4986,
-          "percentile": 5.780347
+          "value": 51.411903,
+          "percentile": 9.110998
         },
         "sth_mvrv": {
-          "value": 0.850873,
-          "percentile": 16.490989
+          "value": 0.873267,
+          "percentile": 19.649839
         },
         "lth_mvrv": {
-          "value": 1.308869,
-          "percentile": 20.069686
+          "value": 1.340395,
+          "percentile": 20.397143
         },
         "price_to_realized": {
-          "value": 1.186531,
-          "percentile": 19.551173
+          "value": 1.215303,
+          "percentile": 20.788713
         }
       },
-      "joint_percentile": 5.763346,
+      "joint_percentile": 9.077002,
       "bottom_pct_signal": {
         "threshold": 10.0,
         "active": false
@@ -74,29 +74,25 @@
   },
   "relative": {
     "ltc/btc": {
-      "date": "2026-11-14",
-      "relative_mvrv": 0.49741,
-      "percentile": 51.857868,
-      "median": 0.492483,
-      "sip_spread": -39.5136,
-      "sip_spread_pct": 16.081218
+      "date": "2026-11-15",
+      "relative_mvrv": 0.501997,
+      "percentile": 53.308973,
+      "median": 0.492543,
+      "sip_spread": -37.992403,
+      "sip_spread_pct": 19.062119
     }
   },
   "changes": {
     "since_previous": {
-      "as_of": "2026-11-13",
-      "items": [
-        "LTC regime changed: neutral -> undervalued"
-      ]
+      "as_of": "2026-11-14",
+      "items": []
     },
     "since_7d": {
-      "as_of": "2026-11-07",
+      "as_of": "2026-11-08",
       "items": [
         "LTC regime changed: neutral -> undervalued",
-        "LTC mvrv percentile moved 35.6 -> 20.9 (-14.7)",
         "BTC regime changed: neutral -> undervalued",
-        "BTC mvrv percentile moved 33.4 -> 19.6 (-13.8)",
-        "BTC supply_in_profit_share percentile moved 19.6 -> 5.8 (-13.8)"
+        "BTC mvrv percentile moved 32.7 -> 20.8 (-11.9)"
       ]
     }
   }
