@@ -1,19 +1,16 @@
-**On-chain regime, 2026-11-20** (generated 2026-11-21T02:35:47+00:00)
+**On-chain regime, 2026-11-21** (generated 2026-11-22T02:36:06+00:00)
 
 | Asset | Regime | Price | Realized | MVRV (pct) | Supply in profit (pct) | Joint rarity |
 |---|---|---|---|---|---|---|
-| Litecoin | undervalued | $40.72 | $73.32 | 0.555 (16.6) | 7.3% (2.0) | 1.03% |
-| Bitcoin | undervalued | $58,918.27 | $53,281.42 | 1.106 (16.5) | 43.6% (1.9) | 1.90% |
+| Litecoin | undervalued | $39.87 | $73.06 | 0.546 (15.2) | 7.5% (2.0) | 1.09% |
+| Bitcoin | undervalued | $60,245.29 | $53,205.63 | 1.132 (17.4) | 45.2% (2.8) | 2.78% |
 
-LTC/BTC relative MVRV 0.502 (pct 53.4); supply-in-profit spread -36.3 pp (pct 22.2).
+LTC/BTC relative MVRV 0.482 (pct 46.3); supply-in-profit spread -37.7 pp (pct 19.8).
 
 Bottom-10% joint signal (MVRV and supply in profit, point-in-time): Litecoin off, Bitcoin off.
 
 **Changes**
-- Since previous snapshot (2026-11-19): none
-- Since 7 days ago (2026-11-13):
-  - LTC regime changed: neutral -> undervalued
-  - LTC mvrv percentile moved 30.3 -> 16.6 (-13.7)
-  - BTC supply_in_profit_share percentile moved 12.5 -> 1.9 (-10.6)
+- Since previous snapshot (2026-11-20): none
+- Since 7 days ago (2026-11-14): none
 
 Percentiles are full-history (share of days at or below today). Valuation context, not a trade signal.
